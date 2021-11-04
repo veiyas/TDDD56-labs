@@ -61,11 +61,20 @@ stack_check(stack_t *stack)
 	return 1;
 }
 
-int /* Return the type you prefer */
-stack_push(/* Make your own signature */)
+void /* Return the type you prefer */
+stack_push(stack_t* stack, pthread_mutex_t* mutex, int value)
 {
 #if NON_BLOCKING == 0
   // Implement a lock_based stack
+  node_t* newNode = (node_t*)malloc(sizeof(node_t));
+  newNode->data = value;
+  newNode->next = NULL;
+  
+  pthread_mutex_lock(mutex); // Critical section here
+  newNode->next = stack->head->next;
+  stack->head->next = newNode;
+  pthread_mutex_unlock(mutex);
+
 #elif NON_BLOCKING == 1
   // Implement a harware CAS-based stack
 #else
@@ -77,15 +86,22 @@ stack_push(/* Make your own signature */)
   // It doesn't harm performance as sanity check are disabled at measurement time
   // This is to be updated as your implementation progresses
   stack_check((stack_t*)1);
-
-  return 0;
 }
 
 int /* Return the type you prefer */
-stack_pop(/* Make your own signature */)
+stack_pop(stack_t* stack, pthread_mutex_t* mutex)
 {
 #if NON_BLOCKING == 0
   // Implement a lock_based stack
+  int dataToReturn = stack->head->next->data;
+
+  pthread_mutex_lock(mutex); // Critical section here
+  node_t* toBeRemoved = stack->head->next;
+  stack->head->next = stack->head->next->next;
+  pthread_mutex_unlock(mutex);
+
+  free(toBeRemoved);
+  return dataToReturn;
 #elif NON_BLOCKING == 1
   // Implement a harware CAS-based stack
 #else

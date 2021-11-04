@@ -83,6 +83,7 @@ assert_fun(int expr, const char *str, const char *file, const char* function, si
 
 stack_t *stack;
 data_t data;
+pthread_mutex_t mutex;
 
 #if MEASURE != 0
 struct stack_measure_arg
@@ -128,11 +129,14 @@ stack_measure_push(void* arg)
 #endif
 #endif
 
+
 /* A bunch of optional (but useful if implemented) unit tests for your stack */
 void
 test_init()
 {
   // Initialize your test batch
+  
+  pthread_mutex_init(&mutex, NULL );
 }
 
 void
@@ -143,10 +147,12 @@ test_setup()
 
   // Allocate a new stack and reset its values
   stack = malloc(sizeof(stack_t));
+  stack->head = (node_t*)malloc(sizeof(node_t));
+  stack->head->data = -1;
+  stack->head->next = NULL;
 
   // Reset explicitely all members to a well-known initial value
   // For instance (to be deleted as your stack design progresses):
-  stack->change_this_member = 0;
 }
 
 void
@@ -170,7 +176,10 @@ test_push_safe()
   // several threads push concurrently to it
 
   // Do some work
-  stack_push(/* add relevant arguments here */);
+  stack_push(stack, &mutex, 1);
+  stack_push(stack, &mutex, 2);
+  stack_push(stack, &mutex, 3);
+  stack_push(stack, &mutex, 4);
 
   // check if the stack is in a consistent state
   int res = assert(stack_check(stack));
@@ -178,16 +187,29 @@ test_push_safe()
   // check other properties expected after a push operation
   // (this is to be updated as your stack design progresses)
   // Now, the test succeeds
-  return res && assert(stack->change_this_member == 0);
+  return res && assert(
+    stack->head->next->next->next->next->data == 1 &&
+    stack->head->next->next->next->data == 2 &&
+    stack->head->next->next->data == 3 &&
+    stack->head->next->data == 4
+    );
 }
 
 int
 test_pop_safe()
 {
   // Same as the test above for parallel pop operation
-
-  // For now, this test always fails
-  return 0;
+  stack_push(stack, &mutex, 1);
+  stack_push(stack, &mutex, 2);
+  stack_push(stack, &mutex, 3);
+  stack_push(stack, &mutex, 4);
+  
+  return assert(
+    stack_pop(stack, &mutex) == 4 &&
+    stack_pop(stack, &mutex) == 3 &&
+    stack_pop(stack, &mutex) == 2 &&
+    stack_pop(stack, &mutex) == 1
+  );
 }
 
 // 3 Threads should be enough to raise and detect the ABA problem
