@@ -1,0 +1,20 @@
+- Write a detailed explanation why computation load can be imbalanced and how it affects the global performance.
+    Not all pixels have equal amounts of computation necessary to determine whether or not it's a part of the set. In the code this takes form of the variable
+    iter which shows how many iterations were necessary to determine whether or not a pixel is in or not. Some pixels might only need few iterations, some may need the
+    maximum amount.
+
+- Describe different load-balancing methods that would help reducing the performance loss due to load-imbalance. You should be able to come up with at least two.
+    Naive balancing: Split the image into parts that each thread handles. This will speedup execution but the problem that some pixels still require more computation
+                     than others still remains.
+    Domain-specific pre-balancing: If you know where bottlenecks exists before running the program you can assign more threads to more computationally expensive areas.
+    Dynamic threading: Let one thread begin calculating pixel values row for row. When it starts encountering pixels which require a lot of iterations (var iter) more 
+                        threads can be created which handles pixels in front of the current thread. These threads work concurrently until one thread starts noticing
+                        a drop off in iterations again at which the number of threads get reduced, probably down to a single one.
+    
+- Consider ways to further optimize your solution which might be outside of the lab scope (e.g., using advanced tricks taught in lectures).
+    In our domain-specific pre-balancing solution, a more granular partition of the image can be done to enable more threads to work specifically on the more difficult
+    pixels, instead the simple 50/50 partition we've implemented. 
+- Think about how well your solutions generalize to other use-cases (task-based paral-lelization in general) and if not, how they could be adapted for this purpose.
+- (Only a thought-experiment, no implementation.)
+    There is absoloutely no guarantee that any arbitrary image you want to compute will fit our 50/50 partition. Therefore, our solution does not generalize
+    particularly well.
