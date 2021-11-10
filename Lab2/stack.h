@@ -26,6 +26,7 @@
 
 #ifndef STACK_H
 #define STACK_H
+#define POOL_SIZE 10
 
 struct node {
   int data;
@@ -33,9 +34,22 @@ struct node {
 };
 typedef struct node node_t;
 
+// Implement simple non-parallell stack
+
+struct simple_stack
+{
+  node_t* head;
+};
+typedef struct simple_stack simple_stack_t;
+
+void simple_push(simple_stack_t* stack, int value);
+
+node_t* simple_pop(simple_stack_t* stack);
+
 struct stack
 {
   node_t* head;
+  simple_stack_t pool;
 };
 typedef struct stack stack_t;
 

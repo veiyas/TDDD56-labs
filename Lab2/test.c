@@ -151,6 +151,8 @@ test_setup()
   stack->head->data = -1;
   stack->head->next = NULL;
 
+  stack->pool.head = (node_t*)malloc(sizeof(node_t));
+
   // Reset explicitely all members to a well-known initial value
   // For instance (to be deleted as your stack design progresses):
 }

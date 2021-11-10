@@ -149,10 +149,12 @@ void parallel_mandelbrot(struct mandelbrot_thread *args, struct mandelbrot_param
 #endif
 // Compiled only if LOADBALANCE = 1
 #if LOADBALANCE == 1 // Smarter and dynamic, all rows are computed independently of each other
-	while(furthestRow < parameters->height) {
+	while(1) {
 		pthread_mutex_lock(&mutex); // Critical section here
 		parameters->begin_h = furthestRow++;
 		pthread_mutex_unlock(&mutex);
+
+		if(parameters->begin_h > parameters->height) break;
 
 		parameters->end_h = parameters->begin_h + 1;
 		parameters->begin_w = 0;
