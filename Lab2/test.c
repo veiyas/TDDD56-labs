@@ -179,6 +179,16 @@ test_push_safe()
 
   // Do some work
   stack_push(stack, &mutex, 1);
+  int tmpValue = stack_pop(stack, &mutex);
+  node_t* recycleNode = stack->pool.head->next;
+
+  // Test node pool behaviour
+  int simpleStackGotNode = assert(stack->pool.head->next != NULL);
+  stack_push(stack, &mutex, tmpValue);
+  int simpleStackRemovedNode = assert(stack->pool.head->next == NULL);
+  int reusedNode = assert(stack->head->next == recycleNode);
+
+  // Test shared stack behaviour
   stack_push(stack, &mutex, 2);
   stack_push(stack, &mutex, 3);
   stack_push(stack, &mutex, 4);
@@ -189,7 +199,7 @@ test_push_safe()
   // check other properties expected after a push operation
   // (this is to be updated as your stack design progresses)
   // Now, the test succeeds
-  return res && assert(
+  return res && simpleStackGotNode && simpleStackRemovedNode && reusedNode && assert(
     stack->head->next->next->next->next->data == 1 &&
     stack->head->next->next->next->data == 2 &&
     stack->head->next->next->data == 3 &&
@@ -217,12 +227,57 @@ test_pop_safe()
 // 3 Threads should be enough to raise and detect the ABA problem
 #define ABA_NB_THREADS 3
 
-int
-test_aba()
+pthread_mutex_t slow_pop_mutex;
+void init_slow_pop() {
+  ABA_slow_pop(stack, &slow_pop_mutex);
+}
+
+void init_safe_pop() {
+  printf("Thread popping\n");
+  stack_pop(stack, &mutex);
+}
+
+void init_safe_push() {
+  printf("Thread pushing\n");
+  stack_push(stack, &mutex, 5);
+}
+
+int test_aba()
 {
 #if NON_BLOCKING == 1 || NON_BLOCKING == 2
   int success, aba_detected = 0;
   // Write here a test for the ABA problem
+
+  pthread_mutex_init(&slow_pop_mutex, NULL);  
+
+  stack_push(stack, &mutex, 1);
+  stack_push(stack, &mutex, 2);
+  stack_push(stack, &mutex, 3);
+
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+
+  pthread_t thread[ABA_NB_THREADS];
+
+  pthread_mutex_lock(&slow_pop_mutex); // Critical section here
+    pthread_create(&thread[0], &attr, &init_slow_pop, NULL); // Thread zero starts
+
+    pthread_create(&thread[1], &attr, &init_safe_pop, NULL); // Thread one completes pop of A
+    pthread_create(&thread[2], &attr, &init_safe_pop, NULL); // Thread two completes pop of B
+
+    pthread_join(thread[1], NULL);
+    pthread_join(thread[2], NULL);
+    pthread_create(&thread[1], &attr, &init_safe_push, NULL); // Thread one completes push of A
+
+    pthread_join(thread[1], NULL);
+  pthread_mutex_unlock(&slow_pop_mutex);
+  pthread_join(thread[0], NULL);
+
+  printf("\"Stack\" contents:\n");
+  for(node_t* itr = stack->head->next; itr != NULL; itr = itr->next) {
+    printf("  %d\n", itr->data);
+  }
+
   success = aba_detected;
   return success;
 #else

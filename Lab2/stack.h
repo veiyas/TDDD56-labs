@@ -34,15 +34,13 @@ struct node {
 };
 typedef struct node node_t;
 
-// Implement simple non-parallell stack
-
 struct simple_stack
 {
   node_t* head;
 };
 typedef struct simple_stack simple_stack_t;
 
-void simple_push(simple_stack_t* stack, int value);
+void simple_push(simple_stack_t* stack, node_t* newNode);
 
 node_t* simple_pop(simple_stack_t* stack);
 
@@ -55,6 +53,8 @@ typedef struct stack stack_t;
 
 void stack_push(stack_t* stack, pthread_mutex_t* mutex, int value);
 int stack_pop(stack_t* stack, pthread_mutex_t* mutex);
+
+void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex);
 
 /* Use this to check if your stack is in a consistent state from time to time */
 int stack_check(stack_t *stack);

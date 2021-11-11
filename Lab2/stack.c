@@ -61,10 +61,10 @@ stack_check(stack_t *stack)
 	return 1;
 }
 
-void simple_push(simple_stack_t* stack, int value) {
-  node_t* newNode = (node_t*)malloc(sizeof(node_t));
-  newNode->data = value;
-  newNode->next = NULL;
+void simple_push(simple_stack_t* stack, node_t* newNode) {
+  // node_t* newNode = (node_t*)malloc(sizeof(node_t));
+  // newNode->data = value;
+  // newNode->next = NULL;
 
   newNode->next = stack->head->next;
   stack->head->next = newNode;
@@ -77,41 +77,37 @@ node_t* simple_pop(simple_stack_t* stack) {
   return toBeReturned;
 }
 
-node_t*
-getNode(stack_t* stack) {
+node_t* getNode(stack_t* stack, int value) {
   node_t* newNode = simple_pop(&stack->pool);
   if(newNode == NULL) {
-    node_t* newNode = (node_t*)malloc(sizeof(node_t));
+    newNode = (node_t*)malloc(sizeof(node_t));
   }
+  newNode->data = value;
+  newNode->next = NULL;
   return newNode;
 }
 
 void /* Return the type you prefer */
 stack_push(stack_t* stack, pthread_mutex_t* mutex, int value)
 {
+node_t* newNode = getNode(stack, value);
+
 #if NON_BLOCKING == 0
-  // Implement a lock_based stack
-  // node_t* newNode;
-  // if(stack->poolIter > -1) {
-  //   newNode = stack->pool[stack->poolIter--];
-  // } else {
-  //   node_t* newNode = (node_t*)malloc(sizeof(node_t));
-  //   stack->pool[++stack->poolIter] = newNode;
-  // }
-
-  node_t* newNode = getNode(stack);
-
-  newNode->data = value;
-  newNode->next = NULL;
-  
   pthread_mutex_lock(mutex); // Critical section here
   newNode->next = stack->head->next;
   stack->head->next = newNode;
   pthread_mutex_unlock(mutex);
 
 #elif NON_BLOCKING == 1
+  // inline size_t cas(size_t* reg, size_t oldval, size_t newval)
   // Implement a harware CAS-based stack
+  node_t* old;
+  do {
+    old = stack->head->next;
+    newNode->next = old;
+  } while(cas((size_t*)&stack->head->next, (size_t)old, (size_t)newNode) != (size_t)old);
 
+  
 #else
   /*** Optional ***/
   // Implement a software CAS-based stack
@@ -135,15 +131,38 @@ stack_pop(stack_t* stack, pthread_mutex_t* mutex)
   stack->head->next = stack->head->next->next;
   pthread_mutex_unlock(mutex);
 
-  free(toBeRemoved);
+  simple_push(&stack->pool, toBeRemoved);
   return dataToReturn;
+
 #elif NON_BLOCKING == 1
   // Implement a harware CAS-based stack
+
+  node_t* toBeRemoved;
+  node_t* newHead;
+  do {
+    toBeRemoved = stack->head->next;
+    newHead = stack->head->next->next;
+  } while(cas((size_t*)&stack->head->next, (size_t)toBeRemoved, (size_t)newHead) != (size_t)toBeRemoved);
+
+  simple_push(&stack->pool, toBeRemoved);
+  return toBeRemoved->data;
+
 #else
   /*** Optional ***/
   // Implement a software CAS-based stack
 #endif
 
   return 0;
+}
+
+void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex) {
+  printf("\nsaving pointer\n");
+  node_t* toBeRemoved = stack->head->next;
+  node_t* newHead = stack->head->next->next;
+
+  pthread_mutex_lock(mutex);
+  printf("thread 0 swapping\n");
+  cas((size_t*)&stack->head->next, (size_t)toBeRemoved, (size_t)newHead);
+  pthread_mutex_unlock(mutex);
 }
 
