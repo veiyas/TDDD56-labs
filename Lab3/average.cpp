@@ -28,8 +28,12 @@ unsigned char average_kernel(skepu::Region2D<unsigned char> m, size_t elemPerPx)
 
 unsigned char average_kernel_1d(skepu::Region1D<unsigned char> m, size_t elemPerPx)
 {
-	// your code here
-	return m(0);
+	float scaling = 1.0 / (m.oi/elemPerPx*2+1);
+	float res = 0;
+	for (int x = -m.oi; x <= m.oi; x += elemPerPx) {
+		res += m(x);
+	}
+	return res * scaling;
 }
 
 
@@ -87,17 +91,19 @@ int main(int argc, char* argv[])
 	
 	
 	// Separable version
-	// use conv.setOverlapMode(skepu::Overlap::[ColWise RowWise]);
-	// and conv.setOverlap(<integer>)
 	{
 		auto conv = skepu::MapOverlap(average_kernel_1d);
-	
+		conv.setOverlapMode(skepu::Overlap::ColWise);
+		conv.setOverlap(radius  * imageInfo.elementsPerPixel);
+		skepu::Matrix<unsigned char> outputMatrixSep(imageInfo.height, imageInfo.width * imageInfo.elementsPerPixel, 120);
 		auto timeTaken = skepu::benchmark::measureExecTime([&]
 		{
-			// your code here
+			conv(outputMatrix, inputMatrix, imageInfo.elementsPerPixel);
+			conv.setOverlapMode(skepu::Overlap::RowWise);
+			conv(outputMatrixSep, outputMatrix, imageInfo.elementsPerPixel);
 		});
 		
-	//	WritePngFileMatrix(outputMatrix, outputFile + "-separable.png", colorType, imageInfo);
+		WritePngFileMatrix(outputMatrix, outputFile + "-separable.png", colorType, imageInfo);
 		std::cout << "Time for separable: " << (timeTaken.count() / 10E6) << "\n";
 	}
 	
