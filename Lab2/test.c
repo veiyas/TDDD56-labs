@@ -100,11 +100,14 @@ stack_measure_pop(void* arg)
   {
     stack_measure_arg_t *args = (stack_measure_arg_t*) arg;
     int i;
+    // for(int i = 0; i < MAX_PUSH_POP; ++i) {
+    //   stack_push(stack, &mutex, i);
+    // }
 
     clock_gettime(CLOCK_MONOTONIC, &t_start[args->id]);
     for (i = 0; i < MAX_PUSH_POP / NB_THREADS; i++)
       {
-        // See how fast your implementation can pop MAX_PUSH_POP elements in parallel
+        stack_pop(stack, &mutex);
       }
     clock_gettime(CLOCK_MONOTONIC, &t_stop[args->id]);
 
@@ -116,11 +119,17 @@ stack_measure_push(void* arg)
 {
   stack_measure_arg_t *args = (stack_measure_arg_t*) arg;
   int i;
+  // for(int i = 0; i < MAX_PUSH_POP; ++i) {
+  //   node_t* newNode = (node_t*)malloc(sizeof(node_t));
+  //   newNode->data = -1;
+  //   newNode->next = stack->pool.head->next;
+  //   stack->pool.head->next = newNode;
+  // }
 
   clock_gettime(CLOCK_MONOTONIC, &t_start[args->id]);
   for (i = 0; i < MAX_PUSH_POP / NB_THREADS; i++)
     {
-        // See how fast your implementation can push MAX_PUSH_POP elements in parallel
+        stack_push(stack, &mutex, i);
     }
   clock_gettime(CLOCK_MONOTONIC, &t_stop[args->id]);
 
@@ -135,7 +144,6 @@ void
 test_init()
 {
   // Initialize your test batch
-  
   pthread_mutex_init(&mutex, NULL );
 }
 
@@ -153,9 +161,33 @@ test_setup()
 
   stack->pool.head = (node_t*)malloc(sizeof(node_t));
 
+  #if MEASURE == 0
+  for(int i = 0; i < 10; ++i) {
+      node_t* newNode = (node_t*)malloc(sizeof(node_t));
+      newNode->data = -1;
+      newNode->next = stack->pool.head->next;
+      stack->pool.head->next = newNode;
+    }
+  #elif MEASURE == 1
+    for(int i = 0; i < MAX_PUSH_POP; ++i) {
+      stack_push(stack, &mutex, i);
+    }
+  #elif MEASURE == 2
+    for(int i = 0; i < MAX_PUSH_POP; ++i) {
+      node_t* newNode = (node_t*)malloc(sizeof(node_t));
+      newNode->data = -1;
+      newNode->next = stack->pool.head->next;
+      stack->pool.head->next = newNode;
+    }
+  #endif
+
   // Reset explicitely all members to a well-known initial value
   // For instance (to be deleted as your stack design progresses):
 }
+
+// CAS: En tråd läser minnet som den vill modifiera innan den uppdaterar minnet. Om minnet har samma värde som rapporterats till tråden
+// så genomför den uppdateringen vilket är en atomisk operation, oftast på hårdvarunivå. Om minnet har samma värde som rapporterats
+// uppdateras inte minnet och någon sorts flagga skickas för att säga att uppdateringen inte gick att genomföra.
 
 void
 test_teardown()
@@ -260,6 +292,7 @@ int test_aba()
   pthread_mutex_init(&slow_pop_mutex, NULL);  
   pthread_mutex_init(&push_pool_mutex, NULL);
 
+  // Init stack with 3 -> 2 -> 1
   stack_push(stack, &mutex, 1);
   stack_push(stack, &mutex, 2);
   stack_push(stack, &mutex, 3);
@@ -406,6 +439,9 @@ setbuf(stdout, NULL);
   pthread_attr_t attr;
   stack_measure_arg_t arg[NB_THREADS];
   pthread_attr_init(&attr);
+
+  test_init();
+  test_setup();
 
   clock_gettime(CLOCK_MONOTONIC, &start);
   for (i = 0; i < NB_THREADS; i++)
