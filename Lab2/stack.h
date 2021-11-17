@@ -55,6 +55,7 @@ void stack_push(stack_t* stack, pthread_mutex_t* mutex, int value);
 int stack_pop(stack_t* stack, pthread_mutex_t* mutex);
 
 void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex);
+void* pool_wait_pop(stack_t* stack, pthread_mutex_t* mutex);
 
 /* Use this to check if your stack is in a consistent state from time to time */
 int stack_check(stack_t *stack);

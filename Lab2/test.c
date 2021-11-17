@@ -227,28 +227,38 @@ test_pop_safe()
 // 3 Threads should be enough to raise and detect the ABA problem
 #define ABA_NB_THREADS 3
 
+#if NON_BLOCKING == 1 || NON_BLOCKING == 2
 pthread_mutex_t slow_pop_mutex;
+pthread_mutex_t push_pool_mutex;
+
 void init_slow_pop() {
   ABA_slow_pop(stack, &slow_pop_mutex);
 }
 
 void init_safe_pop() {
-  printf("Thread popping\n");
+  printf("Thread 2 popping\n");
   stack_pop(stack, &mutex);
 }
 
 void init_safe_push() {
-  printf("Thread pushing\n");
+  printf("Thread one pushing\n");
   stack_push(stack, &mutex, 5);
 }
+
+void init_pool_wait_pop() {
+  printf("Thread one popping\n");
+  pool_wait_pop(stack, &push_pool_mutex);
+}
+#endif
 
 int test_aba()
 {
 #if NON_BLOCKING == 1 || NON_BLOCKING == 2
-  int success, aba_detected = 0;
+  //int success, aba_detected = 0;
   // Write here a test for the ABA problem
 
   pthread_mutex_init(&slow_pop_mutex, NULL);  
+  pthread_mutex_init(&push_pool_mutex, NULL);
 
   stack_push(stack, &mutex, 1);
   stack_push(stack, &mutex, 2);
@@ -259,18 +269,21 @@ int test_aba()
 
   pthread_t thread[ABA_NB_THREADS];
 
-  pthread_mutex_lock(&slow_pop_mutex); // Critical section here
+  pthread_mutex_lock(&slow_pop_mutex); // Make sure thread zero cannot continue its pop after saving the pointers
+  pthread_mutex_lock(&push_pool_mutex); // Make sure thread one cannot push to the pool before thread two
     pthread_create(&thread[0], &attr, &init_slow_pop, NULL); // Thread zero starts
 
-    pthread_create(&thread[1], &attr, &init_safe_pop, NULL); // Thread one completes pop of A
+    pthread_create(&thread[1], &attr, &init_pool_wait_pop, NULL); // Thread one completes pop of A
     pthread_create(&thread[2], &attr, &init_safe_pop, NULL); // Thread two completes pop of B
 
-    pthread_join(thread[1], NULL);
     pthread_join(thread[2], NULL);
+    pthread_mutex_unlock(&push_pool_mutex); // Allow thread one to push to pool
+
+    pthread_join(thread[1], NULL);
     pthread_create(&thread[1], &attr, &init_safe_push, NULL); // Thread one completes push of A
 
     pthread_join(thread[1], NULL);
-  pthread_mutex_unlock(&slow_pop_mutex);
+  pthread_mutex_unlock(&slow_pop_mutex); // Allow thread zero to finish pop
   pthread_join(thread[0], NULL);
 
   printf("\"Stack\" contents:\n");
@@ -278,8 +291,14 @@ int test_aba()
     printf("  %d\n", itr->data);
   }
 
-  success = aba_detected;
-  return success;
+  if(stack->head->next->data == 2) {
+    return 1;
+  } else {
+    return 0;
+  }
+
+  //success = aba_detected;
+  //return success;
 #else
   // No ABA is possible with lock-based synchronization. Let the test succeed only
   return 1;

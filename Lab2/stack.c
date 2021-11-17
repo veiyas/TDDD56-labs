@@ -155,8 +155,9 @@ stack_pop(stack_t* stack, pthread_mutex_t* mutex)
   return 0;
 }
 
+#if NON_BLOCKING == 1 || NON_BLOCKING == 2
 void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex) {
-  printf("\nsaving pointer\n");
+  printf("\nsaving pointers\n");
   node_t* toBeRemoved = stack->head->next;
   node_t* newHead = stack->head->next->next;
 
@@ -165,4 +166,20 @@ void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex) {
   cas((size_t*)&stack->head->next, (size_t)toBeRemoved, (size_t)newHead);
   pthread_mutex_unlock(mutex);
 }
+
+void* pool_wait_pop(stack_t* stack, pthread_mutex_t* mutex) {
+  node_t* toBeRemoved;
+  node_t* newHead;
+  do {
+    toBeRemoved = stack->head->next;
+    newHead = stack->head->next->next;
+  } while(cas((size_t*)&stack->head->next, (size_t)toBeRemoved, (size_t)newHead) != (size_t)toBeRemoved);
+
+  pthread_mutex_lock(mutex);
+  printf("Thread one pushing to pool\n");
+  simple_push(&stack->pool, toBeRemoved);
+  pthread_mutex_unlock(mutex);
+  return toBeRemoved->data;
+}
+#endif
 
