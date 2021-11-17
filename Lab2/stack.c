@@ -77,8 +77,8 @@ node_t* simple_pop(simple_stack_t* stack) {
   return toBeReturned;
 }
 
-node_t* getNode(stack_t* stack, int value) {
-  node_t* newNode = simple_pop(&stack->pool);
+node_t* getNode(stack_t* stack, int value, int id) {
+  node_t* newNode = simple_pop(&stack->pool[id]);
   if(newNode == NULL) {
     newNode = (node_t*)malloc(sizeof(node_t));
   }
@@ -88,9 +88,9 @@ node_t* getNode(stack_t* stack, int value) {
 }
 
 void /* Return the type you prefer */
-stack_push(stack_t* stack, pthread_mutex_t* mutex, int value)
+stack_push(stack_t* stack, pthread_mutex_t* mutex, int value, int id)
 {
-node_t* newNode = getNode(stack, value);
+node_t* newNode = getNode(stack, value, id);
 
 #if NON_BLOCKING == 0
   pthread_mutex_lock(mutex); // Critical section here
@@ -120,7 +120,7 @@ node_t* newNode = getNode(stack, value);
 }
 
 int /* Return the type you prefer */
-stack_pop(stack_t* stack, pthread_mutex_t* mutex)
+stack_pop(stack_t* stack, pthread_mutex_t* mutex, int id)
 {
 #if NON_BLOCKING == 0
   // Implement a lock_based stack
@@ -131,7 +131,7 @@ stack_pop(stack_t* stack, pthread_mutex_t* mutex)
   stack->head->next = stack->head->next->next;
   pthread_mutex_unlock(mutex);
 
-  simple_push(&stack->pool, toBeRemoved);
+  simple_push(&stack->pool[id], toBeRemoved);
   return dataToReturn;
 
 #elif NON_BLOCKING == 1
@@ -144,7 +144,7 @@ stack_pop(stack_t* stack, pthread_mutex_t* mutex)
     newHead = stack->head->next->next;
   } while(cas((size_t*)&stack->head->next, (size_t)toBeRemoved, (size_t)newHead) != (size_t)toBeRemoved);
 
-  simple_push(&stack->pool, toBeRemoved);
+  simple_push(&stack->pool[id], toBeRemoved);
   return toBeRemoved->data;
 
 #else
@@ -156,7 +156,7 @@ stack_pop(stack_t* stack, pthread_mutex_t* mutex)
 }
 
 #if NON_BLOCKING == 1 || NON_BLOCKING == 2
-void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex) {
+void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex, int id) {
   printf("\nsaving pointers\n");
   node_t* toBeRemoved = stack->head->next;
   node_t* newHead = stack->head->next->next;
@@ -164,10 +164,11 @@ void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex) {
   pthread_mutex_lock(mutex);
   printf("thread 0 swapping\n");
   cas((size_t*)&stack->head->next, (size_t)toBeRemoved, (size_t)newHead);
+  simple_push(&stack->pool[id], toBeRemoved);
   pthread_mutex_unlock(mutex);
 }
 
-void* pool_wait_pop(stack_t* stack, pthread_mutex_t* mutex) {
+void* pool_wait_pop(stack_t* stack, pthread_mutex_t* mutex, int id) {
   node_t* toBeRemoved;
   node_t* newHead;
   do {
@@ -177,7 +178,7 @@ void* pool_wait_pop(stack_t* stack, pthread_mutex_t* mutex) {
 
   pthread_mutex_lock(mutex);
   printf("Thread one pushing to pool\n");
-  simple_push(&stack->pool, toBeRemoved);
+  simple_push(&stack->pool[id], toBeRemoved);
   pthread_mutex_unlock(mutex);
   return toBeRemoved->data;
 }

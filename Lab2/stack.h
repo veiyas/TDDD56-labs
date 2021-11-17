@@ -47,15 +47,15 @@ node_t* simple_pop(simple_stack_t* stack);
 struct stack
 {
   node_t* head;
-  simple_stack_t pool;
+  simple_stack_t pool[NB_THREADS];
 };
 typedef struct stack stack_t;
 
-void stack_push(stack_t* stack, pthread_mutex_t* mutex, int value);
-int stack_pop(stack_t* stack, pthread_mutex_t* mutex);
+void stack_push(stack_t* stack, pthread_mutex_t* mutex, int value, int id);
+int stack_pop(stack_t* stack, pthread_mutex_t* mutex, int id);
 
-void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex);
-void* pool_wait_pop(stack_t* stack, pthread_mutex_t* mutex);
+void* ABA_slow_pop(stack_t* stack, pthread_mutex_t* mutex, int id);
+void* pool_wait_pop(stack_t* stack, pthread_mutex_t* mutex, int id);
 
 /* Use this to check if your stack is in a consistent state from time to time */
 int stack_check(stack_t *stack);
