@@ -19,11 +19,31 @@
 
 unsigned char median_kernel(skepu::Region2D<unsigned char> image, size_t elemPerPx)
 {
-	// your code here
-	return image(0,0);
+	unsigned char values[5000];
+	int nElements = 0, i = 0;
+	for (int y = -image.oi; y <= image.oi; ++y) { 
+		for (int x = -image.oj; x <= image.oj; x += elemPerPx) {
+			values[i++] = image(y, x);
+			++nElements;
+		}
+	}
+
+	// Bubble sort for ease of implementation
+	for(int i = 0; i < nElements - 1; ++i) {
+		for(int j = i + 1; j < nElements; ++j) { 
+			if(values[i] > values[j]) {
+				unsigned char tmp = values[i];
+				values[i] = values[j];
+				values[j] = tmp;    
+			}
+		}
+	}
+
+	return values[nElements/2];
 }
 
-
+// 3.1) Lots of shared values between adjacent pixels could be exploited
+// 3.2) Embarassingly parallell problems cannot be data dependent.
 
 int main(int argc, char* argv[])
 {

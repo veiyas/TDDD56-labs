@@ -28,6 +28,7 @@ unsigned char average_kernel(skepu::Region2D<unsigned char> m, size_t elemPerPx)
 
 unsigned char average_kernel_1d(skepu::Region1D<unsigned char> m, size_t elemPerPx)
 {
+	//printf("M.oi separable: %d \n ", m.oi);
 	float scaling = 1.0 / (m.oi/elemPerPx*2+1);
 	float res = 0;
 	for (int x = -m.oi; x <= m.oi; x += elemPerPx) {
@@ -40,12 +41,20 @@ unsigned char average_kernel_1d(skepu::Region1D<unsigned char> m, size_t elemPer
 
 unsigned char gaussian_kernel(skepu::Region1D<unsigned char> m, const skepu::Vec<float> stencil, size_t elemPerPx)
 {
-	// your code here
-	return m(0);
+	//printf("M.oi separable: %d \n ", m.oi);
+	float scaling = 1.0 / (m.oi / elemPerPx*2+1);
+	float res = 0;
+	int i = 0;
+	for (int x = -m.oi; x <= m.oi; x += elemPerPx) {
+		res += m(x)*stencil[i];
+		++i;
+	}
+	return res;
 }
 
-
-
+// 2.1) Separable average if faster for all backends.
+//		Separable Gaussian is faster for all but CUDA and sometimes equal for OpenCL (Might be caused by data upload to GPU)
+//		Since separable filter cores are just an array instead of a matrix the data locality will be much better, hence the better performance
 
 int main(int argc, char* argv[])
 {
@@ -93,17 +102,19 @@ int main(int argc, char* argv[])
 	// Separable version
 	{
 		auto conv = skepu::MapOverlap(average_kernel_1d);
-		conv.setOverlapMode(skepu::Overlap::ColWise);
-		conv.setOverlap(radius  * imageInfo.elementsPerPixel);
 		skepu::Matrix<unsigned char> outputMatrixSep(imageInfo.height, imageInfo.width * imageInfo.elementsPerPixel, 120);
 		auto timeTaken = skepu::benchmark::measureExecTime([&]
 		{
-			conv(outputMatrix, inputMatrix, imageInfo.elementsPerPixel);
 			conv.setOverlapMode(skepu::Overlap::RowWise);
-			conv(outputMatrixSep, outputMatrix, imageInfo.elementsPerPixel);
+			conv.setOverlap(radius * imageInfo.elementsPerPixel);
+			conv(outputMatrix, inputMatrix, imageInfo.elementsPerPixel);
+			
+			conv.setOverlapMode(skepu::Overlap::ColWise);
+			conv.setOverlap(radius);
+			conv(outputMatrixSep, outputMatrix, 1);
 		});
 		
-		WritePngFileMatrix(outputMatrix, outputFile + "-separable.png", colorType, imageInfo);
+		WritePngFileMatrix(outputMatrixSep, outputFile + "-separable.png", colorType, imageInfo);
 		std::cout << "Time for separable: " << (timeTaken.count() / 10E6) << "\n";
 	}
 	
@@ -112,14 +123,20 @@ int main(int argc, char* argv[])
 	{
 		skepu::Vector<float> stencil = sampleGaussian(radius);
 			
-		// skeleton instance, etc here (remember to set backend)
-	
+		auto conv = skepu::MapOverlap(gaussian_kernel);
+		skepu::Matrix<unsigned char> outputMatrixSepGaussian(imageInfo.height, imageInfo.width * imageInfo.elementsPerPixel, 120);
 		auto timeTaken = skepu::benchmark::measureExecTime([&]
 		{
-			// your code here
+			conv.setOverlapMode(skepu::Overlap::RowWise);
+			conv.setOverlap(radius * imageInfo.elementsPerPixel);
+			conv(outputMatrix, inputMatrix, stencil, imageInfo.elementsPerPixel);
+			
+			conv.setOverlapMode(skepu::Overlap::ColWise);
+			conv.setOverlap(radius);
+			conv(outputMatrixSepGaussian, outputMatrix, stencil, 1);
 		});
 	
-	//	WritePngFileMatrix(outputMatrix, outputFile + "-gaussian.png", colorType, imageInfo);
+		WritePngFileMatrix(outputMatrixSepGaussian, outputFile + "-gaussian.png", colorType, imageInfo);
 		std::cout << "Time for gaussian: " << (timeTaken.count() / 10E6) << "\n";
 	}
 	
