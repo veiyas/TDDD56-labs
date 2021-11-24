@@ -28,11 +28,6 @@ float add(float a, float b)
 return a + b;
 }
 
-// more user functions...
-
-
-
-
 int main(int argc, const char* argv[])
 {
 	if (argc < 2)
@@ -52,7 +47,8 @@ int main(int argc, const char* argv[])
 // ...
 	auto mrDot = skepu::MapReduce<2>(
 		[] (float a, float b) { return a * b; },
-		[] (float a, float b) { return a + b; });
+		[] (float a, float b) { return a + b; }
+	);
 
 	auto map = skepu::Map<2>(mult);
 	auto reduce = skepu::Reduce(add);
@@ -75,7 +71,7 @@ int main(int argc, const char* argv[])
 		resSep = reduce(res);
 	});
 
-
+	// Initial measurements
 	// With a vector of size 100,000,000:
 	// Separate faster on CPU (CPU Sequential)
 	// Combined faster with OpenMP (CPU multithreading)

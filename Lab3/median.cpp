@@ -34,16 +34,21 @@ unsigned char median_kernel(skepu::Region2D<unsigned char> image, size_t elemPer
 			if(values[i] > values[j]) {
 				unsigned char tmp = values[i];
 				values[i] = values[j];
-				values[j] = tmp;    
+				values[j] = tmp;
 			}
 		}
 	}
 
-	return values[nElements/2];
+	// Should probably use bucket sort since values are in the range [0, 255] ...
+
+	return nElements % 2 == 1 ? 
+		values[nElements/2] : 
+		(values[nElements/2] + values[nElements/2 + 1]) / 2;
 }
 
 // 3.1) Lots of shared values between adjacent pixels could be exploited
-// 3.2) Embarassingly parallell problems cannot be data dependent.
+// 3.2) Embarassingly parallell problems cannot be data dependent. Automatic vectorization is possible to implement by compiler.
+//		The GPU backend ...
 
 int main(int argc, char* argv[])
 {

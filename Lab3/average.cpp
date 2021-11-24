@@ -116,8 +116,7 @@ int main(int argc, char* argv[])
 		
 		WritePngFileMatrix(outputMatrixSep, outputFile + "-separable.png", colorType, imageInfo);
 		std::cout << "Time for separable: " << (timeTaken.count() / 10E6) << "\n";
-	}
-	
+	}	
 	
 	// Separable gaussian
 	{
@@ -139,8 +138,6 @@ int main(int argc, char* argv[])
 		WritePngFileMatrix(outputMatrixSepGaussian, outputFile + "-gaussian.png", colorType, imageInfo);
 		std::cout << "Time for gaussian: " << (timeTaken.count() / 10E6) << "\n";
 	}
-	
-	
 	
 	return 0;
 }
