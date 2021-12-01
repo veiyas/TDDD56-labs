@@ -32,6 +32,8 @@ int	 gImageWidth, gImageHeight;
 int* gImageWidthHandle = nullptr;
 int* gImageHeightHandle = nullptr;
 
+cudaEvent_t start, stop;
+
 // Init image data
 void initBitmap(int width, int height)
 {
@@ -45,7 +47,7 @@ void initBitmap(int width, int height)
 #define DIM 512
 
 // Select precision here! float or double!
-#define MYFLOAT float
+#define MYFLOAT double
 
 // User controlled parameters
 int maxiter = 20;
@@ -61,12 +63,12 @@ MYFLOAT* scaleHandle = nullptr;
 // Complex number class
 __device__ struct cuComplex
 {
-    MYFLOAT   r;
-    MYFLOAT   i;
+    MYFLOAT r;
+    MYFLOAT i;
     
     __device__ cuComplex( MYFLOAT a, MYFLOAT b ) : r(a), i(b)  {}
     
-    __device__ float magnitude2( void )
+    __device__ MYFLOAT magnitude2( void )
     {
         return r * r + i * i;
     }
@@ -82,57 +84,11 @@ __device__ struct cuComplex
     }
 };
 
-// int mandelbrot( int x, int y)
-// {
-//     MYFLOAT jx = scale * (MYFLOAT)(gImageWidth/2 - x + offsetx/scale)/(gImageWidth/2);
-//     MYFLOAT jy = scale * (MYFLOAT)(gImageHeight/2 - y + offsety/scale)/(gImageWidth/2);
-
-//     cuComplex c(jx, jy);
-//     cuComplex a(jx, jy);
-
-//     int i = 0;
-//     for (i=0; i<maxiter; i++)
-//     {
-//         a = a * a + c;
-//         if (a.magnitude2() > 1000)
-//             return i;
-//     }
-
-//     return i;
-// }
-
-// void computeFractal( unsigned char *ptr)
-// {
-//     // map from x, y to pixel position
-//     for (int x = 0; x < gImageWidth; x++)
-// 	    for (int y = 0; y < gImageHeight; y++)
-// 	    {
-// 		    int offset = x + y * gImageWidth;
-
-// 		    // now calculate the value at that position
-// 		    int fractalValue = mandelbrot( x, y);
-		    
-// 		    // Colorize it
-// 		    int red = 255 * fractalValue/maxiter;
-// 		    if (red > 255) red = 255 - red;
-// 		    int green = 255 * fractalValue*4/maxiter;
-// 		    if (green > 255) green = 255 - green;
-// 		    int blue = 255 * fractalValue*20/maxiter;
-// 		    if (blue > 255) blue = 255 - blue;
-		    
-// 		    ptr[offset*4 + 0] = red;
-// 		    ptr[offset*4 + 1] = green;
-// 		    ptr[offset*4 + 2] = blue;
-		    
-// 		    ptr[offset*4 + 3] = 255;
-//     	}
-// }
-
 __device__
-int mandelbrotCUDA( int x, int y, int* width, int* height, int* maxiter, float* offsetx, float* offsety, float* scale)
+int mandelbrotCUDA( int x, int y, int* width, int* height, int* maxiter, MYFLOAT* offsetx, MYFLOAT* offsety, MYFLOAT* scale)
 {
-    MYFLOAT jx = *scale * (MYFLOAT)((*width)/2 - x + *offsetx/ *scale)/((*width)/2);
-    MYFLOAT jy = *scale * (MYFLOAT)((*height)/2 - y + *offsety/ *scale)/((*height)/2);
+    MYFLOAT jx = *scale * ((*width)/2 - x + *offsetx/ *scale)/((*width)/2);
+    MYFLOAT jy = *scale * ((*height)/2 - y + *offsety/ *scale)/((*height)/2);
 
     cuComplex c(jx, jy);
     cuComplex a(jx, jy);
@@ -148,7 +104,7 @@ int mandelbrotCUDA( int x, int y, int* width, int* height, int* maxiter, float* 
 }
 
 __global__
-void computeFractalCUDA( unsigned char *ptr, int* width, int* height, int* maxiter, float* offsetx, float* offsety, float* scale)
+void computeFractalCUDA( unsigned char *ptr, int* width, int* height, int* maxiter, MYFLOAT* offsetx, MYFLOAT* offsety, MYFLOAT* scale)
 {
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -222,9 +178,9 @@ void PrintHelp()
 // Compute fractal and display image
 void Draw()
 {
-	const int threadsPerBlock = 32;
-	dim3 dimBlock( DIM / threadsPerBlock, DIM / threadsPerBlock);
-	dim3 dimGrid( threadsPerBlock , threadsPerBlock );
+	const int threadDivider = 32;
+	dim3 dimBlock( DIM / threadDivider, DIM / threadDivider);
+	dim3 dimGrid( threadDivider , threadDivider );
 
 	cudaMemcpy( gImageWidthHandle, &gImageWidth, sizeof(gImageWidth), cudaMemcpyHostToDevice );
 	cudaMemcpy( gImageHeightHandle, &gImageHeight, sizeof(gImageHeight), cudaMemcpyHostToDevice );
@@ -233,7 +189,16 @@ void Draw()
 	cudaMemcpy( offsetyHandle, &offsety, sizeof(offsety), cudaMemcpyHostToDevice );
 	cudaMemcpy( scaleHandle, &scale, sizeof(scale), cudaMemcpyHostToDevice );
 	
+	cudaEventRecord(start, 0);
 	computeFractalCUDA<<<dimGrid, dimBlock>>>(pixelsHandle, gImageWidthHandle, gImageHeightHandle, maxiterHandle, offsetxHandle, offsetyHandle, scaleHandle);
+	cudaThreadSynchronize();
+    cudaEventRecord(stop, 0);
+
+	cudaEventSynchronize(start);
+    cudaEventSynchronize(stop);
+	float theTime;
+	cudaEventElapsedTime(&theTime, start, stop);
+	printf("\nTime consumed: %f ms \n", theTime);
 	
 	cudaMemcpy( pixels, pixelsHandle, pixelsSize, cudaMemcpyDeviceToHost );
 
@@ -244,6 +209,10 @@ void Draw()
 	
 	if (print_help)
 		PrintHelp();
+
+	cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess)
+        printf("Error: %s\n", cudaGetErrorString(err));
 	
 	glutSwapBuffers();
 }
@@ -318,7 +287,29 @@ void KeyboardProc(unsigned char key, int x, int y)
 	glutPostRedisplay();
 }
 
-// Main program, inits
+// QUESTION: What were the main changes in order to make the Mandelbrot run in CUDA?
+// Allocate memory for all variables on the GPU. Split up calculations in block & threads.
+// Changed double nested for loops to GPU-thread indexing and made CuComplex visible on the GPU.
+
+// QUESTION: How many blocks and threads did you use?
+// 16x16 threads per block, 32x32 grid
+
+// QUESTION: When you use the Complex class, what modifier did you have to use on the methods?
+// Put __device__ in front to make sure the GPU has it in its scope (?).
+
+// QUESTION: What performance did you get? How does that compare to the CPU solution?
+// At highest amount of work:
+// CPU has ~100 ms/frame with lowest amount of iterations. Higher iterations unuseable.
+// GPU has ~0.07 ms/frame with lowest amount of iterations. ~1.2 ms on highest amount of iterations.
+
+// QUESTION: What performance did you get with float vs double precision?
+// At highest amount of work:
+// ~0.47 ms lowest iterations, ~17 ms highest iterations. Also higher resolution on image!
+
+// QUESTION: In Lab 1, load balancing was an important issue. Is that an issue here? Why/why not?
+// Since there are so many threads working in parallell compared to the CPU, load balancing
+// doesn't become much of an issue where virtually every pixel has its own thread.
+
 int main( int argc, char** argv) 
 {
 	glutInit(&argc, argv);
@@ -330,16 +321,19 @@ int main( int argc, char** argv)
 	glutMotionFunc(mouse_motion);
 	glutKeyboardFunc(KeyboardProc);
 	glutReshapeFunc(Reshape);
-	
+
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
 	initBitmap(DIM, DIM);
 
 	cudaMalloc( (void**)&pixelsHandle, pixelsSize);
 	cudaMalloc( (void**)&gImageWidthHandle, sizeof(int));
 	cudaMalloc( (void**)&gImageHeightHandle, sizeof(int));
 	cudaMalloc( (void**)&maxiterHandle, sizeof(int));
-	cudaMalloc( (void**)&offsetxHandle, sizeof(int));
-	cudaMalloc( (void**)&offsetyHandle, sizeof(int));
-	cudaMalloc( (void**)&scaleHandle, sizeof(int));
+	cudaMalloc( (void**)&offsetxHandle, sizeof(MYFLOAT));
+	cudaMalloc( (void**)&offsetyHandle, sizeof(MYFLOAT));
+	cudaMalloc( (void**)&scaleHandle, sizeof(MYFLOAT));
 	
 	glutMainLoop();
 }

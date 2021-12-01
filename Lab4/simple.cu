@@ -6,7 +6,10 @@
 #include <stdio.h>
 
 // QUESTION: How many cores will simple.cu use, max, as written? How many SMs?
-// It will use one block with 16 cores (blocksize = 16, dim3 dimBlock( blocksize, 1 ))
+// Original code:
+// dim3 dimBlock( blocksize, 1 );
+// dim3 dimGrid( 1, 1 );
+// It will use one block with 16 cores (blocksize = 16)
 
 // QUESTION: Is the calculated square root identical to what the CPU calculates? Should we assume that this is always the case?
 // The GPU will use single precision while CPU can use both single and double precision, depending on the implementation. Might not always be the same.
@@ -31,12 +34,11 @@ int main()
 	float *sqrtsHandle;
 	float* sqrts = new float[sqrtSize];
 	
-	for(size_t i = 0; i < sqrtSize; ++i){
+	for(size_t i = 0; i < sqrtSize; ++i) {
 		sqrts[i] = (float)i;
 	}
 
 	cudaMalloc( (void**)&sqrtsHandle, sqrtSize*sizeof(float));
-	//cudaMalloc( (void**)&cd, size );
 
 	dim3 dimBlock( blocksize, 1 );
 	dim3 dimGrid( sqrtSize/blocksize );	
@@ -48,7 +50,7 @@ int main()
 	cudaFree( sqrtsHandle );
 	
 	for (int i = 0; i < sqrtSize; i++)
-		printf("%f ", sqrts[i]);
+		printf("%f \n", sqrts[i]);
 	printf("\n");
 	delete[] c;
 	delete[] sqrts; 
