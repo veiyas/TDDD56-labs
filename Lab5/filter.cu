@@ -81,14 +81,28 @@ void computeImages(int kernelsizex, int kernelsizey)
 		printf("Kernel size out of bounds!\n");
 		return;
 	}
+	cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
 
 	pixels = (unsigned char *) malloc(imagesizex*imagesizey*3);
 	cudaMalloc( (void**)&dev_input, imagesizex*imagesizey*3);
 	cudaMemcpy( dev_input, image, imagesizey*imagesizex*3, cudaMemcpyHostToDevice );
 	cudaMalloc( (void**)&dev_bitmap, imagesizex*imagesizey*3);
 	dim3 grid(imagesizex,imagesizey);
+
+	cudaEventRecord(start, 0);
 	filter<<<grid,1>>>(dev_input, dev_bitmap, imagesizex, imagesizey, kernelsizex, kernelsizey); // Awful load balance
 	cudaThreadSynchronize();
+	cudaEventRecord(stop, 0);
+
+	cudaEventSynchronize(start);
+	cudaEventSynchronize(stop);
+	
+	float theTime;
+	cudaEventElapsedTime(&theTime, start, stop);
+	printf("Elapsed time: %f ms\n", theTime);
 //	Check for errors!
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess)
