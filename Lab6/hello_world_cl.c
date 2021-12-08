@@ -32,6 +32,15 @@ const char *KernelSource = "\n" \
 
 #define DATA_SIZE (16)
 
+// Question: How is the communication between the host and the graphic card handled?
+// Using different kinds of queues to run kernels, extract data, etc
+
+// Question: What function executes your kernel?
+// clEnqueueNDRangeKernel
+
+// Question: How does the kernel know what element to work on?
+// CL uses the function get_global_id() to get thread indices
+
 int main(int argc, char** argv)
 {
 	int err;							// error code returned from api calls
@@ -111,7 +120,7 @@ int main(int argc, char** argv)
 	
 
 //	Print result
-		printf("%s\n", c);
+	printf("%s\n", c);
 
 	// Clean up
 	clReleaseMemObject(input);
