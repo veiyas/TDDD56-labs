@@ -26,7 +26,7 @@
 #include "milli.h"
 
 // Size of data!
-#define kDataLength 1024
+#define kDataLength 65536
 #define MAXPRINTSIZE 16
 
 unsigned int *generateRandomData(unsigned int length)
@@ -96,7 +96,9 @@ int find_max_gpu(unsigned int *data, unsigned int length)
 	printCLError(ciErrNum,7);
 
 	// ********** RUN THE KERNEL ************
-	runKernel(gpgpuReduction, length, io_data, length);
+	ResetMilli();
+  runKernel(gpgpuReduction, length/2, io_data, length);
+  printf("GPU %f ms\n", GetSeconds()*1000);
 
 	// Get data
 	cl_event event;
@@ -157,11 +159,11 @@ int main( int argc, char** argv)
   
   ResetMilli();
   find_max_cpu(data_cpu,length);
-  printf("CPU %f\n", GetSeconds());
+  printf("CPU %f ms\n", GetSeconds()*1000);
 
-  ResetMilli(); // You may consider moving this inside find_max_gpu(), to skip timing of data allocation.
+  //ResetMilli(); // You may consider moving this inside find_max_gpu(), to skip timing of data allocation.
   find_max_gpu(data_gpu,length);
-  printf("GPU %f\n", GetSeconds());
+  //printf("GPU %f ms\n", GetSeconds()*1000);
 
   // Print part of result
   for (int i=0;i<MAXPRINTSIZE;i++)
@@ -179,3 +181,13 @@ int main( int argc, char** argv)
   if (gpgpuReduction) clReleaseKernel(gpgpuReduction);
   return 0;
 }
+
+// QUESTION: What timing did you get for your GPU reduction? Compare it to the CPU version.
+// At kDataLength = 8192: CPU = ~0.05 ms, GPU = ~0.2 ms 
+
+// QUESTION: Try larger data size. On what size does the GPU version get faster, or at least comparable, to the CPU?
+// At kDataLength = 65536 the CPU is always almost equal or slower than the GPU
+
+// QUESTION: How can you optimize this further? You should know at least one way.
+// Instead of letting the threads run the loop the kernel can be ran multiple times to mimic the same behaviour (why?)
+// Shared memory for all nodes processed by work group

@@ -2,12 +2,23 @@
  * Placeholder OpenCL kernel
  */
 
-__kernel void bitonic(__global unsigned int *data, const unsigned int length)
-{ 
-  unsigned int pos = 0;
-  unsigned int val;
+__kernel void bitonic(__global unsigned int *data, const unsigned int length, int outerLength, int innerLength)
+{
+  unsigned int i = get_global_id(0);
 
-  //Something should happen here
+  int ixj = i ^ innerLength; // Calculate indexing!
 
-  data[get_global_id(0)]=get_global_id(0);
+  if ((ixj) > i)
+  {
+    if ((i & outerLength) == 0 && data[i] > data[ixj]) {
+      unsigned int tmp = data[i];
+      data[i] = data[ixj];
+      data[ixj] = tmp;
+    }
+    if ((i & outerLength) != 0 && data[i] < data[ixj]) {
+      unsigned int tmp = data[i];
+      data[i] = data[ixj];
+      data[ixj] = tmp;
+    }
+  }
 }

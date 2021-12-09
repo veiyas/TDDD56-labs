@@ -25,7 +25,8 @@
 #include "milli.h"
 
 // Size of data!
-#define kDataLength 1024
+#define kDataLength 131072
+//#define kDataLength 2048
 #define MAXPRINTSIZE 16
 
 unsigned int *generateRandomData(unsigned int length)
@@ -56,7 +57,7 @@ unsigned int *generateRandomData(unsigned int length)
 // Kernel run conveniently packed. Edit as needed, i.e. with more parameters.
 // Only ONE array of data.
 // __kernel void sort(__global unsigned int *data, const unsigned int length)
-void runKernel(cl_kernel kernel, int threads, cl_mem data, unsigned int length)
+void runKernel(cl_kernel kernel, int threads, cl_mem data, unsigned int length, int outerLength, int innerLength)
 {
 	size_t localWorkSize, globalWorkSize;
 	cl_int ciErrNum = CL_SUCCESS;
@@ -69,6 +70,8 @@ void runKernel(cl_kernel kernel, int threads, cl_mem data, unsigned int length)
 	// set the args values
 	ciErrNum  = clSetKernelArg(kernel, 0, sizeof(cl_mem),  (void *) &data);
 	ciErrNum |= clSetKernelArg(kernel, 1, sizeof(cl_uint), (void *) &length);
+  ciErrNum |= clSetKernelArg(kernel, 2, sizeof(cl_int), (void *) &outerLength);
+  ciErrNum |= clSetKernelArg(kernel, 3, sizeof(cl_int), (void *) &innerLength);
 	printCLError(ciErrNum,8);
 	
 	// Run kernel
@@ -80,7 +83,6 @@ void runKernel(cl_kernel kernel, int threads, cl_mem data, unsigned int length)
 	clWaitForEvents(1, &event);
 	printCLError(ciErrNum,10);
 }
-
 
 static cl_kernel gpgpuSort;
 
@@ -95,7 +97,11 @@ int bitonic_gpu(unsigned int *data, unsigned int length)
 	printCLError(ciErrNum,7);
 
 	// ********** RUN THE KERNEL ************
-	runKernel(gpgpuSort, length, io_data, length);
+  ResetMilli();
+  for (int k = 2; k <= length; k = 2*k) // Outer loop, double size for each step
+    for (int j = k >> 1; j > 0; j = j >> 1) // Inner loop, half size for each step
+	    runKernel(gpgpuSort, length, io_data, length, k, j);
+  printf("GPU %f ms\n", GetSeconds()*1000);
 
 	// Get data
 	cl_event event;
@@ -125,17 +131,17 @@ void bitonic_cpu(unsigned int *data, int N)
 
   printf("CPU sorting.\n");
 
-  for (k=2;k<=N;k=2*k) // Outer loop, double size for each step
+  for (k = 2; k <= N; k = 2*k) // Outer loop, double size for each step
   {
-    for (j=k>>1;j>0;j=j>>1) // Inner loop, half size for each step
+    for (j = k >> 1; j > 0; j = j >> 1) // Inner loop, half size for each step
     {
       for (i=0;i<N;i++) // Loop over data
       {
         int ixj=i^j; // Calculate indexing!
         if ((ixj)>i)
         {
-          if ((i&k)==0 && data[i]>data[ixj]) exchange(&data[i],&data[ixj]);
-          if ((i&k)!=0 && data[i]<data[ixj]) exchange(&data[i],&data[ixj]);
+          if ((i & k) == 0 && data[i] > data[ixj]) exchange(&data[i], &data[ixj]);
+          if ((i & k) != 0 && data[i] < data[ixj]) exchange(&data[i], &data[ixj]);
         }
       }
     }
@@ -176,11 +182,9 @@ int main( int argc, char** argv)
   
   ResetMilli();
   bitonic_cpu(data_cpu,length);
-  printf("CPU %f\n", GetSeconds());
-
-  ResetMilli(); // You may consider moving this inside bitonic_gpu(), to skip timing of data allocation.
-  bitonic_gpu(data_gpu,length);
-  printf("GPU %f\n", GetSeconds());
+  printf("CPU %f ms\n", GetSeconds()*1000);
+  
+  bitonic_gpu(data_gpu,length);  
 
   // Print part of result
   for (int i=0;i<MAXPRINTSIZE;i++)
@@ -199,3 +203,18 @@ int main( int argc, char** argv)
   if (gpgpuSort) clReleaseKernel(gpgpuSort);
   return 0;
 }
+
+// QUESTION: Should each thread produce one output or two? Why?
+// Since bitonic sort is based on swapping two elements each threads must produce two outputs (two swapped elements in the array)
+
+// QUESTION: How many items can you handle in one workgroup?
+// The GPU can handle up to 1024 threads. Each threads handles two items which means if we use 1024 threads in the workgroup 2048 items can be handled in a workgroup
+
+// QUESTION: What problem must be solved when you use more than one workgroup? How did you solve it?
+// Since the outer loop takes big steps ( k = 2*k ) it could end up iterating out of a blocks designated memory.
+// By doing this work on the host before calling the kernel the GPU gets exactly the memory it needs for the current partition.
+
+// QUESTION: What time do you get? Difference to the CPU? What is the break even size? What can you expect for a parallel CPU version? (Your conclusions here may vary between the labs.)
+// Break even: somewhere between kDataLength = 1024 and 2048, around ~1.2 ms
+// At kDataLength = 131072: GPU = ~1.5 ms, CPU = ~80 ms. Bitonic sort scales really well in parallell on the GPU.
+// A parallell CPU-version should be faster since it scales well. Although it wont reach GPU-times since the number of available threads are much lower.
