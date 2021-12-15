@@ -205,12 +205,14 @@ int main( int argc, char** argv)
 }
 
 // QUESTION: Should each thread produce one output or two? Why?
-// Since bitonic sort is based on swapping two elements each threads must produce two outputs (two swapped elements in the array)
+// Since bitonic sort is based on swapping two elements in the base case each thread must produce two outputs (two swapped elements in the array)
 
 // QUESTION: How many items can you handle in one workgroup?
 // The GPU can handle up to 1024 threads. Each threads handles two items which means if we use 1024 threads in the workgroup 2048 items can be handled in a workgroup
 
 // QUESTION: What problem must be solved when you use more than one workgroup? How did you solve it?
+// The different workgroups must be synchronized so that they do not access data that is not finished yet. We solved it by
+// running the kernel multiple times.
 // Since the outer loop takes big steps ( k = 2*k ) it could end up iterating out of a blocks designated memory.
 // By doing this work on the host before calling the kernel the GPU gets exactly the memory it needs for the current partition.
 

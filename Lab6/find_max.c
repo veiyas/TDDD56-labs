@@ -26,7 +26,7 @@
 #include "milli.h"
 
 // Size of data!
-#define kDataLength 65536
+#define kDataLength 1024*1024
 #define MAXPRINTSIZE 16
 
 unsigned int *generateRandomData(unsigned int length)
@@ -97,7 +97,8 @@ int find_max_gpu(unsigned int *data, unsigned int length)
 
 	// ********** RUN THE KERNEL ************
 	ResetMilli();
-  runKernel(gpgpuReduction, length/2, io_data, length);
+  for(int i = length/2; i > 0; i /= 2)
+    runKernel(gpgpuReduction, i, io_data, length);
   printf("GPU %f ms\n", GetSeconds()*1000);
 
 	// Get data
@@ -183,11 +184,12 @@ int main( int argc, char** argv)
 }
 
 // QUESTION: What timing did you get for your GPU reduction? Compare it to the CPU version.
-// At kDataLength = 8192: CPU = ~0.05 ms, GPU = ~0.2 ms 
+// At kDataLength = 8192: CPU = ~0.05 ms, GPU = ~0.2 ms
 
 // QUESTION: Try larger data size. On what size does the GPU version get faster, or at least comparable, to the CPU?
-// At kDataLength = 65536 the CPU is always almost equal or slower than the GPU
+// At kDataLength = 131072 the CPU is always almost equal or slower than the GPU
+// Since the kernel is run multiple times more time spent on overhead is ineviteble
 
 // QUESTION: How can you optimize this further? You should know at least one way.
-// Instead of letting the threads run the loop the kernel can be ran multiple times to mimic the same behaviour (why?)
 // Shared memory for all nodes processed by work group
+// Reduce overhead by group "short" levels to a single thread
